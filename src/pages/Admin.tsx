@@ -1,4 +1,5 @@
-import { useState } from "react";
+// src/pages/Admin.tsx
+import React, { useState, useEffect } from "react";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,83 +7,126 @@ import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
-import { mockProduct, mockReviews } from "@/data/mockProducts";
-import { Product, Review, ProductVariant } from "@/types/product";
+import { Product, Review } from "@/types/product";
+import {
+  getProducts,
+  getProductById,
+  saveProduct,
+  createProduct,
+  deleteProduct,
+  getReviews,
+  saveReviews,
+} from "@/lib/productStore";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Trash, Edit, PlusCircle } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
-// Login hardcoded conforme solicitado [cite: 38]
+// Login hardcoded
 const ADMIN_EMAIL = "pedrocosta2683@gmail.com";
 const ADMIN_PASSWORD = "Canario@10";
 
-type AdminView = "dashboard" | "edit-product" | "manage-links";
+type AdminView = "dashboard" | "edit-product" | "manage-links" | "edit-reviews";
 
-// Componente do formulário do produto
-const ProductForm = ({ onBack }: { onBack: () => void }) => {
+// --- COMPONENTE DO FORMULÁRIO DE PRODUTO ---
+const ProductForm = ({
+  productId,
+  onBack,
+}: {
+  productId: string | null;
+  onBack: () => void;
+}) => {
   const { toast } = useToast();
-  // Inicializa o estado do formulário com os dados mocados existentes
-  const [product, setProduct] = useState<Product>(mockProduct);
-  const [reviews, setReviews] = useState<Review[]>(mockReviews);
+  const [product, setProduct] = useState<Product | null>(null);
 
-  // Funções auxiliares para lidar com campos complexos (JSON em Textarea)
-  const handleSpecificationChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    try {
-      const specs = JSON.parse(e.target.value);
-      setProduct((p) => ({ ...p, specifications: specs }));
-    } catch {
-      // Ignora JSON inválido temporariamente
+  useEffect(() => {
+    if (productId) {
+      setProduct(getProductById(productId) || null);
+    } else {
+      // Cria um novo produto em branco
+      const newProd = createProduct({ name: "Novo Produto" });
+      setProduct(newProd);
     }
-  };
+  }, [productId]);
 
-  const handleVariantsChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    try {
-      const variants = JSON.parse(e.target.value);
-      setProduct((p) => ({ ...p, variants: variants }));
-    } catch {
-      // Ignora JSON inválido
-    }
-  };
+  if (!product) {
+    return <div>Carregando...</div>;
+  }
 
-  const handleReviewsChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    try {
-      const revs = JSON.parse(e.target.value);
-      setReviews(revs);
-    } catch {
-      // Ignora JSON inválido
-    }
+  // Funções auxiliares para lidar com campos complexos
+  const handleProductChange = (field: keyof Product, value: any) => {
+    setProduct((p) => (p ? { ...p, [field]: value } : null));
   };
   
-  const handleProductChange = (field: keyof Product, value: string | number) => {
-    setProduct((p) => ({ ...p, [field]: value }));
-  };
+  const handleNestedChange = (
+    section: "specifications" | "variants" | "includedItems" | "images", 
+    value: string
+  ) => {
+    if (!product) return;
+    
+    try {
+      if (section === "specifications" || section === "variants") {
+        const parsedValue = JSON.parse(value);
+        handleProductChange(section, parsedValue);
+      } else if (section === "includedItems" || section === "images") {
+         const list = value.split(",").map(item => item.trim()).filter(Boolean);
+         handleProductChange(section, list);
+      }
+    } catch {
+      toast({ variant: "destructive", title: "Erro de Formato", description: "O formato JSON ou da lista (separada por vírgula) está inválido."})
+    }
+  }
 
   const handleSave = () => {
-    // Em um app real, aqui você enviaria `product` e `reviews` para sua API ou arquivo
-    console.log("Produto Salvo:", product);
-    console.log("Avaliações Salvas:", reviews);
-    toast({
-      title: "Produto Salvo!",
-      description: "Os dados do produto foram salvos (no console, por enquanto).",
-    });
-    onBack();
+    if (product) {
+      saveProduct(product);
+      toast({
+        title: "Produto Salvo!",
+        description: "Os dados do produto foram salvos.",
+      });
+      onBack();
+    }
   };
 
   return (
     <Card className="mt-8">
       <CardHeader>
-        <CardTitle>Gerenciar Produto</CardTitle>
+        <CardTitle>{productId ? "Editar Produto" : "Criar Novo Produto"}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="space-y-2">
-          <Label htmlFor="name">Título do Produto [cite: 51]</Label>
+          <Label htmlFor="id">ID do Produto (não editável)</Label>
+          <Input id="id" value={product.id} readOnly disabled />
+        </div>
+      
+        <div className="space-y-2">
+          <Label htmlFor="name">Título do Produto [cite: 19]</Label>
           <Input
             id="name"
             value={product.name}
             onChange={(e) => handleProductChange("name", e.target.value)}
           />
         </div>
-        
+
         <div className="grid grid-cols-3 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="price">Valor Original (R$) [cite: 49]</Label>
+            <Label htmlFor="price">Valor Original (R$) [cite: 17]</Label>
             <Input
               id="price"
               type="number"
@@ -91,7 +135,7 @@ const ProductForm = ({ onBack }: { onBack: () => void }) => {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="discountPrice">Valor com Desconto (R$) [cite: 47]</Label>
+            <Label htmlFor="discountPrice">Valor com Desconto (R$) [cite: 15]</Label>
             <Input
               id="discountPrice"
               type="number"
@@ -100,7 +144,7 @@ const ProductForm = ({ onBack }: { onBack: () => void }) => {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="discountPercentage">Desconto (%) [cite: 48]</Label>
+            <Label htmlFor="discountPercentage">Desconto (%) [cite: 16]</Label>
             <Input
               id="discountPercentage"
               type="number"
@@ -111,18 +155,18 @@ const ProductForm = ({ onBack }: { onBack: () => void }) => {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="images">Imagens (Links separados por vírgula) [cite: 45]</Label>
+          <Label htmlFor="images">Imagens (Links separados por vírgula) [cite: 13]</Label>
           <Textarea
             id="images"
             placeholder="https://link1.png, https://link2.png, ..."
             value={product.images.join(",\n")}
-            onChange={(e) => handleProductChange("images", e.target.value.split(",").map(link => link.trim()))}
+            onChange={(e) => handleNestedChange("images", e.target.value)}
             rows={4}
           />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="description">Descrição [cite: 58-66]</Label>
+          <Label htmlFor="description">Descrição [cite: 26-33]</Label>
           <Textarea
             id="description"
             value={product.description}
@@ -132,108 +176,172 @@ const ProductForm = ({ onBack }: { onBack: () => void }) => {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="includedItems">Itens Inclusos (Separados por vírgula) [cite: 67-71]</Label>
+          <Label htmlFor="includedItems">Itens Inclusos (Separados por vírgula) [cite: 35-39]</Label>
           <Textarea
             id="includedItems"
-            value={product.includedItems?.join(",\n")}
-            onChange={(e) => handleProductChange("includedItems", e.target.value.split(",").map(item => item.trim()))}
+            value={product.includedItems?.join(",\n") || ""}
+            onChange={(e) => handleNestedChange("includedItems", e.target.value)}
             rows={4}
           />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="specifications">Especificações (Formato JSON) [cite: 72-88]</Label>
+          <Label htmlFor="specifications">Especificações (Formato JSON) [cite: 40-56]</Label>
           <Textarea
             id="specifications"
-            value={JSON.stringify(product.specifications, null, 2)}
-            onChange={handleSpecificationChange}
+            value={JSON.stringify(product.specifications || {}, null, 2)}
+            onChange={(e) => handleNestedChange("specifications", e.target.value)}
             rows={8}
           />
         </div>
         
         <div className="space-y-2">
-          <Label htmlFor="variants">Variantes (Formato JSON) [cite: 108-112]</Label>
+          <Label htmlFor="variants">Variantes (Formato JSON) [cite: 76-80]</Label>
           <Textarea
             id="variants"
-            value={JSON.stringify(product.variants, null, 2)}
-            onChange={handleVariantsChange}
+            value={JSON.stringify(product.variants || [], null, 2)}
+            onChange={(e) => handleNestedChange("variants", e.target.value)}
             rows={6}
           />
         </div>
 
+      </CardContent>
+      <CardFooter className="gap-2">
+        <Button onClick={handleSave} className="w-full">
+          Salvar Produto
+        </Button>
+        <Button onClick={onBack} variant="outline" className="w-full">
+          Voltar ao Dashboard
+        </Button>
+      </CardFooter>
+    </Card>
+  );
+};
+
+// --- COMPONENTE DE AVALIAÇÕES ---
+const ReviewsForm = ({ onBack }: { onBack: () => void }) => {
+  const { toast } = useToast();
+  const [reviews, setReviews] = useState<Review[]>([]);
+
+  useEffect(() => {
+    setReviews(getReviews());
+  }, []);
+
+  const handleReviewsChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    try {
+      const revs = JSON.parse(e.target.value);
+      setReviews(revs);
+    } catch {
+      // Ignora JSON inválido temporariamente
+    }
+  };
+  
+  const handleSave = () => {
+    saveReviews(reviews);
+    toast({
+      title: "Avaliações Salvas!",
+    });
+    onBack();
+  };
+
+  return (
+    <Card className="mt-8">
+      <CardHeader>
+        <CardTitle>Gerenciar Avaliações [cite: 67]</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-6">
         <div className="space-y-2">
-          <Label htmlFor="reviews">Avaliações (Formato JSON) [cite: 99]</Label>
+          <Label htmlFor="reviews">Avaliações (Formato JSON) [cite: 70-73]</Label>
           <Textarea
             id="reviews"
             value={JSON.stringify(reviews, null, 2)}
             onChange={handleReviewsChange}
-            rows={10}
+            rows={20}
           />
         </div>
       </CardContent>
       <CardFooter className="gap-2">
-        <Button onClick={handleSave} className="w-full">Salvar Produto</Button>
+        <Button onClick={handleSave} className="w-full">Salvar Avaliações</Button>
         <Button onClick={onBack} variant="outline" className="w-full">Voltar</Button>
       </CardFooter>
     </Card>
   );
 };
 
-// Componente para Gerar Links
+
+// --- COMPONENTE DE GERAR LINKS ---
 const ManageLinks = ({ onBack }: { onBack: () => void }) => {
-  const [generatedLink, setGeneratedLink] = useState("");
+  const [link, setLink] = useState("");
+  const [products, setProducts] = useState<Product[]>([]);
   
-  const generateLink = () => {
-    // Por enquanto, apenas gera o link do produto principal
-    const link = `${window.location.origin}/product`;
-    setGeneratedLink(link);
+  useEffect(() => {
+    setProducts(getProducts());
+  }, []);
+
+  const generateLink = (productId: string) => {
+    const productLink = `${window.location.origin}/product/${productId}`;
+    setLink(productLink);
   };
   
   return (
     <Card className="mt-8">
       <CardHeader>
-        <CardTitle>Gerar Links de Produto </CardTitle>
+        <CardTitle>Gerar Links de Produto</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <Button onClick={generateLink} className="w-full">Gerar Link do Produto Principal</Button>
-        {generatedLink && (
-          <div className="space-y-2">
+        <p className="text-sm text-muted-foreground">Selecione um produto para gerar o link:</p>
+        <div className="space-y-2">
+          {products.map(product => (
+            <Button 
+              key={product.id}
+              variant="outline"
+              className="w-full justify-start"
+              onClick={() => generateLink(product.id)}
+            >
+              {product.name}
+            </Button>
+          ))}
+        </div>
+        
+        {link && (
+          <div className="space-y-2 pt-4">
             <Label htmlFor="product-link">Link Gerado:</Label>
-            <Input id="product-link" readOnly value={generatedLink} />
+            <Input id="product-link" readOnly value={link} />
           </div>
         )}
       </CardContent>
       <CardFooter>
-        <Button onClick={onBack} variant="outline" className="w-full">Voltar</Button>
+        <Button onClick={onBack} variant="outline" className="w-full">Voltar</a/Button>
       </CardFooter>
     </Card>
   );
 };
 
-// Componente principal do Admin
+
+// --- COMPONENTE PRINCIPAL DO ADMIN ---
 const Admin = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [view, setView] = useState<AdminView>("dashboard");
+  const [products, setProducts] = useState<Product[]>([]);
+  const [currentProductId, setCurrentProductId] = useState<string | null>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (isLoggedIn && view === "dashboard") {
+      setProducts(getProducts());
+    }
+  }, [isLoggedIn, view]);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    
     if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
       setIsLoggedIn(true);
       setView("dashboard");
-      toast({
-        title: "Login realizado com sucesso!",
-        description: "Bem-vindo ao painel administrativo.",
-      });
+      toast({ title: "Login realizado com sucesso!" });
     } else {
-      toast({
-        title: "Erro ao fazer login",
-        description: "E-mail ou senha incorretos.",
-        variant: "destructive",
-      });
+      toast({ title: "Erro ao fazer login", variant: "destructive" });
     }
   };
   
@@ -242,16 +350,32 @@ const Admin = () => {
     setEmail("");
     setPassword("");
   };
+
+  const handleCreateNew = () => {
+    setCurrentProductId(null); // Indica que é um novo produto
+    setView("edit-product");
+  };
+
+  const handleEdit = (id: string) => {
+    setCurrentProductId(id);
+    setView("edit-product");
+  };
+  
+  const handleDelete = (id: string) => {
+    deleteProduct(id);
+    setProducts(getProducts()); // Atualiza a lista
+    toast({ title: "Produto Excluído!" });
+  };
   
   const renderDashboard = () => (
     <>
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
         <Card className="p-6">
-          <h2 className="text-xl font-bold mb-4">Gerenciar Produtos</h2>
+          <h2 className="text-xl font-bold mb-4">Gerenciar Avaliações</h2>
           <p className="text-muted-foreground mb-4">
-            Adicione ou edite os produtos da sua loja. 
+            Edite as avaliações globais dos produtos.
           </p>
-          <Button className="w-full" onClick={() => setView("edit-product")}>Gerenciar</Button>
+          <Button className="w-full" onClick={() => setView("edit-reviews")}>Gerenciar Avaliações</Button>
         </Card>
 
         <Card className="p-6">
@@ -263,61 +387,109 @@ const Admin = () => {
         </Card>
 
         <Card className="p-6">
-          <h2 className="text-xl font-bold mb-4">Gerar Links </h2>
+          <h2 className="text-xl font-bold mb-4">Gerar Links [cite: 8]</h2>
           <p className="text-muted-foreground mb-4">
-            Crie links personalizados para seus produtos.
+            Crie links para produtos específicos.
           </p>
           <Button className="w-full" onClick={() => setView("manage-links")}>Criar Link</Button>
         </Card>
       </div>
 
-      <Card className="mt-8 p-6">
-        <h2 className="text-2xl font-bold mb-6">Estatísticas Rápidas</h2>
-        <div className="grid md:grid-cols-4 gap-6">
-          <div>
-            <p className="text-muted-foreground mb-1">Vendas Hoje</p>
-            <p className="text-3xl font-bold text-primary">R$ 0,00</p>
-          </div>
-          <div>
-            <p className="text-muted-foreground mb-1">Pedidos</p>
-            <p className="text-3xl font-bold">0</p>
-          </div>
-          <div>
-            <p className="text-muted-foreground mb-1">Produtos</p>
-            <p className="text-3xl font-bold">1</p>
-          </div>
-          <div>
-            <p className="text-muted-foreground mb-1">Visitantes</p>
-            <p className="text-3xl font-bold">0</p>
-          </div>
-        </div>
+      <Card className="mt-8">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Meus Produtos</CardTitle>
+          <Button size="sm" onClick={handleCreateNew}>
+            <PlusCircle className="mr-2 h-4 w-4" />
+            Criar Novo Produto
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Produto</TableHead>
+                <TableHead>Preço</TableHead>
+                <TableHead>Vendidos</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {products.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center text-muted-foreground">
+                    Nenhum produto cadastrado.
+                  </TableCell>
+                </TableRow>
+              )}
+              {products.map((product) => (
+                <TableRow key={product.id}>
+                  <TableCell className="font-medium">{product.name}</TableCell>
+                  <TableCell>R$ {product.discountPrice.toFixed(2)}</TableCell>
+                  <TableCell>{product.soldCount}</TableCell>
+                  <TableCell className="text-right space-x-2">
+                    <Button variant="outline" size="icon" onClick={() => handleEdit(product.id)}>
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="destructive" size="icon">
+                          <Trash className="h-4 w-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Essa ação não pode ser desfeita. Isso excluirá permanentemente o produto.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => handleDelete(product.id)}>
+                            Excluir
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                    
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
       </Card>
     </>
   );
   
+  // Decide qual view renderizar
   const renderView = () => {
     switch(view) {
       case "dashboard":
         return renderDashboard();
       case "edit-product":
-        return <ProductForm onBack={() => setView("dashboard")} />;
+        return <ProductForm productId={currentProductId} onBack={() => setView("dashboard")} />;
       case "manage-links":
         return <ManageLinks onBack={() => setView("dashboard")} />;
+      case "edit-reviews":
+        return <ReviewsForm onBack={() => setView("dashboard")} />;
       default:
         return renderDashboard();
     }
   }
 
+  // --- RENDER LOGIN ---
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen flex flex-col">
         <Header />
         <main className="flex-1 flex items-center justify-center px-4">
           <Card className="w-full max-w-md p-8">
-            <h1 className="text-3xl font-bold mb-6 text-center">Admin Login</h1>
+            <h1 className="text-3xl font-bold mb-6 text-center">Admin Login </h1>
             <form onSubmit={handleLogin} className="space-y-4">
               <div>
-                <Label htmlFor="email">E-mail [cite: 38]</Label>
+                <Label htmlFor="email">E-mail</Label>
                 <Input
                   id="email"
                   type="email"
@@ -327,7 +499,7 @@ const Admin = () => {
                 />
               </div>
               <div>
-                <Label htmlFor="password">Senha [cite: 38]</Label>
+                <Label htmlFor="password">Senha</Label>
                 <Input
                   id="password"
                   type="password"
@@ -351,7 +523,7 @@ const Admin = () => {
     );
   }
 
-  // Painel Admin Logado
+  // --- RENDER PAINEL ADMIN ---
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
