@@ -4,17 +4,32 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
+import { useToast } from "@/hooks/use-toast";
+
+const ADMIN_EMAIL = "pedrocosta2683@gmail.com";
+const ADMIN_PASSWORD = "Canario@10";
 
 const Admin = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const { toast } = useToast();
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    // Simulação simples de login
-    if (email && password) {
+    
+    if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
       setIsLoggedIn(true);
+      toast({
+        title: "Login realizado com sucesso!",
+        description: "Bem-vindo ao painel administrativo.",
+      });
+    } else {
+      toast({
+        title: "Erro ao fazer login",
+        description: "E-mail ou senha incorretos.",
+        variant: "destructive",
+      });
     }
   };
 
