@@ -1,5 +1,7 @@
+// src/data/mockProducts.ts
 import { Product, Review } from "@/types/product";
 
+// Este é agora apenas o DADO INICIAL
 export const mockProduct: Product = {
   id: "jbl-boombox-4",
   name: "OFERTA RELÂMPAGO • Caixa de Som Bluetooth À Prova D'água Boombox 4 JBL",
@@ -50,6 +52,7 @@ Feita para quem vive no ritmo da música, essa caixa de som combina graves profu
   },
 };
 
+// Estas são as DADOS INICIAIS
 export const mockReviews: Review[] = [
   {
     id: "1",
